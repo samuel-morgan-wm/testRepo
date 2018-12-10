@@ -1,0 +1,176 @@
+#*********************************************************************************************#
+# TITLE: 05_inc_sourcing_dl_tables_cstms_ans_set_hive_load ALT.yml                            #
+# DESCRIPTION:Hive Load for cstms_ans_set in data lake                                        #
+#=============================================================================================#
+# REVISION HISTORY                                                                            #
+#---------------------------------------------------------------------------------------------#
+# 2018-12-10 :: v1.0 :: s0m02sj :: Created                                                    #
+#=============================================================================================#
+---
+Description: "Full refresh load to the target table for $target_table"
+HiveQuery: "
+SET hive.execution.engine=tez;
+SET tez.queue.name=$queue;
+
+CREATE TABLE IF NOT EXISTS $target_schema.$target_table
+(
+    quote_id	              INT             , 
+    quote_ship_nbr	        SMALLINT        ,
+    quote_carton_nbr	      SMALLINT        ,
+    quote_pack_nbr	        SMALLINT        ,
+    currency_code	          CHAR(3)         ,
+    expense_id	            SMALLINT        ,
+    expense_type	          SMALLINT        ,
+    rate_type	              CHAR(1)         ,
+    basis_amt	              DECIMAL(15,4)   ,
+    expense_pct	            DECIMAL(5,4)    ,
+    expense_rate_1	        DECIMAL(13,4)   ,
+    per_unit_qty_1	        DECIMAL(17,7)   ,
+    per_uom_code_1	        CHAR(2)         ,
+    expense_rate_2	        DECIMAL(13,4)   ,
+    per_unit_qty_2	        DECIMAL(17,7)   ,
+    per_uom_code_2	        CHAR(2)         ,
+    expense_amt	            DECIMAL(15,4)   ,
+    pymt_currency_ind	      CHAR(1)         ,
+    create_method_code	    CHAR(1)         ,
+    last_change_userid	    CHAR(8)         ,
+    last_change_date	      TIMESTAMP       ,
+    last_change_office	    INT             ,
+    distribution_id	        INT             ,
+    expense_comment	        VARCHAR(80)     ,
+    src_rcv_ts	            TIMESTAMP       ,
+    load_userid	            VARCHAR(20)     ,
+    load_ts	                TIMESTAMP       ,
+    upd_userid	            VARCHAR(20)     ,
+    upd_ts	                TIMESTAMP
+)
+STORED AS ORC
+TBLPROPERTIES('orc.compress'='SNAPPY','transactional'='false');
+
+DROP TABLE IF EXISTS stg_$target_schema.$target_table_temp;
+
+CREATE TABLE IF NOT EXISTS stg_$target_schema.$target_table_temp
+(
+    quote_id	              INT             , 
+    quote_ship_nbr	        SMALLINT        ,
+    quote_carton_nbr	      SMALLINT        ,
+    quote_pack_nbr	        SMALLINT        ,
+    currency_code	          CHAR(3)         ,
+    expense_id	            SMALLINT        ,
+    expense_type	          SMALLINT        ,
+    rate_type	              CHAR(1)         ,
+    basis_amt	              DECIMAL(15,4)   ,
+    expense_pct	            DECIMAL(5,4)    ,
+    expense_rate_1	        DECIMAL(13,4)   ,
+    per_unit_qty_1	        DECIMAL(17,7)   ,
+    per_uom_code_1	        CHAR(2)         ,
+    expense_rate_2	        DECIMAL(13,4)   ,
+    per_unit_qty_2	        DECIMAL(17,7)   ,
+    per_uom_code_2	        CHAR(2)         ,
+    expense_amt	            DECIMAL(15,4)   ,
+    pymt_currency_ind	      CHAR(1)         ,
+    create_method_code	    CHAR(1)         ,
+    last_change_userid	    CHAR(8)         ,
+    last_change_date	      TIMESTAMP       ,
+    last_change_office	    INT             ,
+    distribution_id	        INT             ,
+    expense_comment	        VARCHAR(80)     ,
+    src_rcv_ts	            TIMESTAMP       ,
+    load_userid	            VARCHAR(20)     ,
+    load_ts	                TIMESTAMP       ,
+    upd_userid	            VARCHAR(20)     ,
+    upd_ts	                TIMESTAMP
+)
+STORED AS ORC;
+
+INSERT INTO TABLE stg_$target_schema.$target_table_temp
+SELECT
+    A.quote_id	              INT             , 
+    A.quote_ship_nbr	        SMALLINT        ,
+    A.quote_carton_nbr	      SMALLINT        ,
+    A.quote_pack_nbr	        SMALLINT        ,
+    A.currency_code	          CHAR(3)         ,
+    A.expense_id	            SMALLINT        ,
+    A.expense_type	          SMALLINT        ,
+    A.rate_type	              CHAR(1)         ,
+    A.basis_amt	              DECIMAL(15,4)   ,
+    A.expense_pct	            DECIMAL(5,4)    ,
+    A.expense_rate_1	        DECIMAL(13,4)   ,
+    A.per_unit_qty_1	        DECIMAL(17,7)   ,
+    A.per_uom_code_1	        CHAR(2)         ,
+    A.expense_rate_2	        DECIMAL(13,4)   ,
+    A.per_unit_qty_2	        DECIMAL(17,7)   ,
+    A.per_uom_code_2	        CHAR(2)         ,
+    A.expense_amt	            DECIMAL(15,4)   ,
+    A.pymt_currency_ind	      CHAR(1)         ,
+    A.create_method_code	    CHAR(1)         ,
+    A.last_change_userid	    CHAR(8)         ,
+    A.last_change_date	      TIMESTAMP       ,
+    A.last_change_office	    INT             ,
+    A.distribution_id	        INT             ,
+    A.expense_comment	        VARCHAR(80)     ,
+    CASE
+        WHEN B.last_change_date IS NULL THEN A.last_change_date
+        WHEN A.last_change_date > B.last_change_date THEN cast(from_unixtime(unix_timestamp()) AS TIMESTAMP)
+        ELSE B.src_rcv_ts
+    END AS src_rcv_ts,
+    CASE
+        WHEN B.quote_id IS NULL AND B.quote_ship_nbr IS NULL AND B.quote_carton_nbr IS NULL AND B.quote_pack_nbr IS NULL AND B.currency_code IS NULL AND B.expense_id THEN current_user()
+        ELSE B.load_userid
+    END AS load_userid,
+    CASE
+        WHEN B.quote_id IS NULL AND B.quote_ship_nbr IS NULL AND B.quote_carton_nbr IS NULL AND B.quote_pack_nbr IS NULL AND B.currency_code IS NULL AND B.expense_id THEN cast(from_unixtime(unix_timestamp()) AS TIMESTAMP)
+        ELSE B.load_ts
+    END AS load_ts,
+    CASE
+        WHEN B.quote_id IS NULL AND B.quote_ship_nbr IS NULL AND B.quote_carton_nbr IS NULL AND B.quote_pack_nbr IS NULL AND B.currency_code IS NULL AND B.expense_id THEN NULL
+        WHEN A.last_change_date > B.last_change_date THEN current_user()
+        ELSE B.upd_userid
+    END AS upd_userid,
+    CASE
+        WHEN B.quote_id IS NULL AND B.quote_ship_nbr IS NULL AND B.quote_carton_nbr IS NULL AND B.quote_pack_nbr IS NULL AND B.currency_code IS NULL AND B.expense_id THEN NULL
+        WHEN A.last_change_date > B.last_change_date THEN cast(from_unixtime(unix_timestamp()) AS TIMESTAMP)
+        ELSE B.upd_ts
+    END AS upd_ts	               
+FROM stg_$target_schema.$target_table_stg A
+LEFT JOIN $target_schema.$target_table B
+ON A.quote_id = B.quote_id AND A.quote_ship_nbr = B.quote_ship_nbr AND A.quote_carton_nbr = B.quote_carton_nbr AND A.quote_pack_nbr = B.quote_pack_nbr AND A.currency_code = B.currency_code AND A.expense_id = B.expense_id
+;
+
+
+INSERT OVERWRITE TABLE $target_schema.$target_table 
+SELECT
+  quote_id	          AS	quote_id              ,
+  quote_ship_nbr	    AS	quote_ship_nbr        ,
+  quote_carton_nbr	  AS	quote_carton_nbr      ,
+  quote_pack_nbr	    AS	quote_pack_nbr        , 
+  currency_code	      AS	currency_code         ,
+  expense_id	        AS	expense_id            ,
+  expense_type	      AS	expense_type          ,
+  rate_type	          AS	rate_type             ,
+  basis_amt	          AS	basis_amt             ,
+  expense_pct	        AS	expense_pct           ,
+  expense_rate_1	    AS	expense_rate_1        ,
+  per_unit_qty_1	    AS	per_unit_qty_1        ,
+  per_uom_code_1	    AS	per_uom_code_1        ,
+  expense_rate_2	    AS	expense_rate_2        ,
+  per_unit_qty_2	    AS	per_unit_qty_2        ,
+  per_uom_code_2	    AS	per_uom_code_2        ,
+  expense_amt	        AS	expense_amt           ,
+  pymt_currency_ind	  AS	pymt_currency_ind     ,
+  create_method_code	AS	create_method_code    ,
+  last_change_userid	AS	last_change_userid    ,
+  last_change_date	  AS	last_change_date      ,
+  last_change_office	AS	last_change_office    ,
+  distribution_id	    AS	distribution_id       ,
+  expense_comment	    AS	expense_comment       ,
+  src_rcv_ts	        AS	src_rcv_ts            ,
+  load_userid	        AS	load_userid           ,
+  load_ts	            AS	load_ts               ,
+  upd_userid	        AS	upd_userid            ,
+  upd_ts	            AS	upd_ts
+FROM stg_$target_schema.$target_table_temp;
+
+dfs -chgrp -R $group /user/hive/warehouse/$target_schema.db/$target_table;
+dfs -chmod -R $permissions /user/hive/warehouse/$target_schema.db/$target_table;
+"
